@@ -14,29 +14,21 @@ function validateMediaUrl(value: string) {
 }
 
 async function createMediaSandbox() {
-  const snapshotId = process.env.SANDBOX_SNAPSHOT_ID;
-  if (snapshotId) {
-    return Sandbox.create({
-      source: { type: 'snapshot', snapshotId },
-      persistent: false,
-      timeout: 4 * 60 * 1000,
-      resources: { vcpus: 4 },
-    });
-  }
   return Sandbox.create({
     persistent: false,
     timeout: 4 * 60 * 1000,
     resources: { vcpus: 4 },
+    networkPolicy: 'allow-all',
   });
 }
 
 async function ensureFfmpeg(sandbox: Sandbox) {
-  const check = await sandbox.runCommand('bash', ['-lc', 'test -x ./ffmpeg']);
+  const check = await sandbox.runCommand('bash', ['-lc', 'command -v ffmpeg >/dev/null 2>&1 && command -v ffprobe >/dev/null 2>&1']);
   if (check.exitCode === 0) return;
-  const install = await sandbox.runCommand('bash', [
-    '-lc',
-    'curl -fsSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-amd64-static.tar.xz | tar -xJ --strip-components=1',
-  ]);
+
+  const update = await sandbox.runCommand({ cmd: 'apt-get', args: ['update', '-y'], sudo: true });
+  if (update.exitCode !== 0) throw new Error(`FFmpeg package index update failed: ${await update.stderr()}`);
+  const install = await sandbox.runCommand({ cmd: 'apt-get', args: ['install', '-y', 'ffmpeg'], sudo: true });
   if (install.exitCode !== 0) throw new Error(`FFmpeg install failed: ${await install.stderr()}`);
 }
 
@@ -108,14 +100,14 @@ export async function analyzeAudio(audioUrl: string, durationHint?: number | nul
 
     let durationSec = durationHint || 0;
     if (!durationSec) {
-      const probe = await sandbox.runCommand('./ffprobe', [
+      const probe = await sandbox.runCommand('ffprobe', [
         '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', 'input.audio',
       ]);
       if (probe.exitCode === 0) durationSec = Number.parseFloat((await probe.stdout()).trim());
     }
     if (!Number.isFinite(durationSec) || durationSec <= 0) throw new Error('Could not determine audio duration');
 
-    const decode = await sandbox.runCommand('./ffmpeg', [
+    const decode = await sandbox.runCommand('ffmpeg', [
       '-y', '-i', 'input.audio', '-vn', '-ac', '1', '-ar', String(SAMPLE_RATE), '-f', 'f32le', 'analysis.f32',
     ]);
     if (decode.exitCode !== 0) throw new Error(`Audio analysis decode failed: ${await decode.stderr()}`);
@@ -152,7 +144,7 @@ export async function renderClips(input: {
         '[bg][wave]overlay=(W-w)/2:H-h-180[v]',
       ].join(';');
 
-      const command = await sandbox.runCommand('./ffmpeg', [
+      const command = await sandbox.runCommand('ffmpeg', [
         '-y',
         '-loop', '1', '-i', 'cover.jpg',
         '-ss', String(clip.start), '-t', String(clip.duration), '-i', 'track.audio',
