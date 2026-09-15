@@ -1,8 +1,9 @@
 import { analyzeAudio, renderClips } from '../lib/agent/media';
+import { buildPerformanceLearnings } from '../lib/agent/analytics';
 import { brandApprovedArtwork } from '../lib/agent/branding';
 import { developCreative, generateArtOnly } from '../lib/agent/creative';
 import { buildSocialPackage } from '../lib/agent/social';
-import { getRelease, patchRelease } from '../lib/agent/store';
+import { getRelease, listReleases, patchRelease } from '../lib/agent/store';
 
 export async function prepareReleaseWorkflow(releaseId: string) {
   'use workflow';
@@ -42,11 +43,14 @@ async function creativeDirectionStep(releaseId: string) {
   if (!release) throw new Error('Release not found');
   await patchRelease(releaseId, { status: 'creative-directing', error: null });
 
+  const priorReleases = await listReleases(30);
+  const performanceLearnings = buildPerformanceLearnings(priorReleases.filter((item) => item.id !== releaseId));
   const creative = await developCreative({
     trackTitle: release.trackTitle,
     catalog: release.catalog,
     lyrics: release.lyrics,
     durationSec: release.durationSec,
+    performanceLearnings,
   });
   const social = buildSocialPackage({
     trackTitle: release.trackTitle,
