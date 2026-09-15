@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 import { put } from '@vercel/blob';
+import { getAgentSettings } from './settings';
 
 function esc(value: string) {
   return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] || c));
@@ -12,9 +13,10 @@ async function loadOfficialLogo(): Promise<Buffer> {
   try {
     return await readFile(localPath);
   } catch {
-    const logoUrl = process.env.GLOOMCAKE_LOGO_URL;
+    const settings = await getAgentSettings();
+    const logoUrl = settings.logoUrl || process.env.GLOOMCAKE_LOGO_URL;
     if (!logoUrl) {
-      throw new Error('Official GloomCake logo is not configured. Add public/GloomCake_Official_Logo_MASTER_TRANSPARENT.png or set GLOOMCAKE_LOGO_URL.');
+      throw new Error('Official GloomCake logo is not configured. Upload it once in Release Agent system setup.');
     }
     const response = await fetch(logoUrl, { cache: 'no-store' });
     if (!response.ok) throw new Error('Could not download the configured official GloomCake logo');
