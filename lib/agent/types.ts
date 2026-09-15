@@ -47,6 +47,15 @@ export type ReleaseApprovals = {
   publishApprovedAt?: string | null;
 };
 
+export type ReleaseAnalytics = {
+  syncedAt: string;
+  from: string;
+  to: string;
+  postCount: number;
+  score?: number | null;
+  raw: unknown;
+};
+
 export type ReleaseRecord = {
   id: string;
   version: 1;
@@ -69,6 +78,7 @@ export type ReleaseRecord = {
     scheduledPostIds?: string[];
     scheduledAt?: string | null;
   };
+  analytics?: ReleaseAnalytics | null;
   error?: string | null;
 };
 
