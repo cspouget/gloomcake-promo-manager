@@ -7,6 +7,21 @@ function esc(value: string) {
   return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] || c));
 }
 
+async function loadOfficialLogo(): Promise<Buffer> {
+  const localPath = path.join(process.cwd(), 'public', 'GloomCake_Official_Logo_MASTER_TRANSPARENT.png');
+  try {
+    return await readFile(localPath);
+  } catch {
+    const logoUrl = process.env.GLOOMCAKE_LOGO_URL;
+    if (!logoUrl) {
+      throw new Error('Official GloomCake logo is not configured. Add public/GloomCake_Official_Logo_MASTER_TRANSPARENT.png or set GLOOMCAKE_LOGO_URL.');
+    }
+    const response = await fetch(logoUrl, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Could not download the configured official GloomCake logo');
+    return Buffer.from(await response.arrayBuffer());
+  }
+}
+
 export async function brandApprovedArtwork(input: {
   releaseId: string;
   artOnlyUrl: string;
@@ -17,8 +32,7 @@ export async function brandApprovedArtwork(input: {
   if (!artResponse.ok) throw new Error('Could not download approved artwork');
   const artBuffer = Buffer.from(await artResponse.arrayBuffer());
 
-  const logoPath = path.join(process.cwd(), 'public', 'GloomCake_Official_Logo_MASTER_TRANSPARENT.png');
-  const logoBuffer = await readFile(logoPath);
+  const logoBuffer = await loadOfficialLogo();
   const logo = await sharp(logoBuffer)
     .resize({ width: 360, height: 360, fit: 'contain', withoutEnlargement: true })
     .png()
