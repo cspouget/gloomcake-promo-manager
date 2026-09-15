@@ -27,6 +27,7 @@ export async function developCreative(input: {
   catalog: string;
   lyrics?: string;
   durationSec?: number | null;
+  performanceLearnings?: string;
 }): Promise<CreativeDirection> {
   const openai = client();
   if (!openai) return fallbackCreative(input.trackTitle);
@@ -37,11 +38,11 @@ export async function developCreative(input: {
     input: [
       {
         role: 'system',
-        content: `${GLOOMCAKE_VISUAL_BRAND}\n\nYou are the GloomCake release creative director. You MUST develop three radically different visual concepts, explicitly reject the most predictable one, and choose one of the other two. Artwork is generated without typography or branding. Return JSON only.`,
+        content: `${GLOOMCAKE_VISUAL_BRAND}\n\nYou are the GloomCake release creative director. You MUST develop three radically different visual concepts, explicitly reject the most predictable one, and choose one of the other two. Artwork is generated without typography or branding. Prior performance signals may influence strategic judgment but must NEVER cause repeated subjects, compositions, motifs, portals, masks, mirrors, faces, color schemes, or literal remakes. Return JSON only.`,
       },
       {
         role: 'user',
-        content: `TRACK: ${input.trackTitle}\nCATALOG: ${input.catalog}\nDURATION: ${input.durationSec ?? 'unknown'} seconds\nLYRICS:\n${input.lyrics || '(none supplied)'}\n\nReturn an object with exactly these fields: emotionalCore (string), concepts (array of exactly 3 one-sentence concepts), rejectedConcept (0-based integer), selectedConcept (0-based integer, different from rejectedConcept), artworkPrompt (detailed image prompt that explicitly forbids text/logo/catalog), socialAngle (short phrase).`,
+        content: `TRACK: ${input.trackTitle}\nCATALOG: ${input.catalog}\nDURATION: ${input.durationSec ?? 'unknown'} seconds\nLYRICS:\n${input.lyrics || '(none supplied)'}\n\nPERFORMANCE LEARNINGS:\n${input.performanceLearnings || 'No historical campaign data yet.'}\n\nReturn an object with exactly these fields: emotionalCore (string), concepts (array of exactly 3 one-sentence concepts), rejectedConcept (0-based integer), selectedConcept (0-based integer, different from rejectedConcept), artworkPrompt (detailed image prompt that explicitly forbids text/logo/catalog), socialAngle (short phrase).`,
       },
     ],
     text: { format: { type: 'json_object' } },
@@ -51,6 +52,8 @@ export async function developCreative(input: {
     const parsed = JSON.parse(response.output_text) as CreativeDirection;
     if (!Array.isArray(parsed.concepts) || parsed.concepts.length !== 3) throw new Error('Invalid concepts');
     if (parsed.selectedConcept === parsed.rejectedConcept) throw new Error('Selected rejected concept');
+    if (![0, 1, 2].includes(parsed.selectedConcept) || ![0, 1, 2].includes(parsed.rejectedConcept)) throw new Error('Invalid concept index');
+    parsed.artworkPrompt = `${parsed.artworkPrompt}\n\nHARD OUTPUT RULE: ART ONLY. Absolutely no title, words, lettering, logo, GloomCake name, catalog number, watermark, label copy, UI, border text, fake brand marks, or signatures.`;
     return parsed;
   } catch {
     return fallbackCreative(input.trackTitle);
@@ -62,7 +65,7 @@ export async function generateArtOnly(releaseId: string, prompt: string): Promis
   if (!openai) throw new Error('OPENAI_API_KEY is not configured');
 
   const result = await openai.images.generate({
-    model: 'gpt-image-2',
+    model: 'gpt-image-2.5-sunburst',
     prompt,
     size: '1024x1024',
     quality: 'high',
